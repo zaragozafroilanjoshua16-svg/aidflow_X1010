@@ -1,0 +1,48 @@
+import type { PaymentSnapshot } from "./receipt";
+import type { Prepared } from "./types";
+export type OrderRow = {
+  id: string;
+  donor_user_id: string;
+  campaign_id: string;
+  payment_config_id: string;
+  status: string;
+  amount_stroops: string;
+  asset: "XLM";
+  network: "testnet";
+  wallet_address: string;
+  snapshot: PaymentSnapshot;
+  idempotency_key: string;
+  created_at: Date;
+  updated_at: Date;
+  title?: string;
+  slug?: string;
+};
+export type PaymentRow = {
+  order_id: string;
+  preparation: Prepared | null;
+  unsigned_xdr: string | null;
+  network_passphrase: string | null;
+  signed_xdr: string | null;
+  tx_hash: string | null;
+  preparation_request_id: string | null;
+  submit_started_at: Date | null;
+  verified_at: Date | null;
+  ledger: string | null;
+};
+export type OrderView = {
+  id: string;
+  campaignId: string;
+  title: string;
+  slug: string;
+  status: string;
+  amountStroops: string;
+  walletAddress: string;
+  reliefAddress: string;
+  logisticsAddress: string;
+  txHash: string | null;
+  hasSignedEnvelope: boolean;
+  submitted: boolean;
+  prepared: Prepared | null;
+  verifiedAt: string | null;
+  createdAt: string;
+};

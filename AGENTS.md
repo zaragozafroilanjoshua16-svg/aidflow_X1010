@@ -12,3 +12,22 @@ Read `README.md`, `llms.md` and current source first. This repository is a minim
 - Transaction confirmation is distinct from verified payouts and order fulfilment. Real applications need authentication, ownership checks, durable storage, rate limits, trusted pricing and receipt verification.
 - Run `pnpm typecheck`, `pnpm test`, `pnpm build` and browser credential checks. Use local fixtures; do not perform live financial tests without authorization.
 - Follow event primers for event rules. Use the SDK as the default integration path; keep this example focused on the payment lifecycle.
+
+## AidFlow application invariants
+
+- Google OAuth only, verified Google emails, database sessions. New users default
+  to USER; ADMIN is granted only by trusted local bootstrap to an existing account.
+- Donation APIs require the order owner. Never accept client pricing, recipients,
+  deployment or network. Keep saved configurations and order snapshots immutable.
+- SUCCESS requires original finality plus native-token transfer evidence of exactly
+  9000000 and 1000000 stroops to the two saved recipient wallets. Percentage payout
+  events alone are not proof. Progress includes only verified durable SUCCESS orders;
+  starter configuration proofs are not donations.
+- Commit preparation/submission intent before upstream requests. A crash, expiry,
+  UNKNOWN, NOT_FOUND or missing response never authorizes a replacement transaction.
+- No automatic submit/resubmit. Paused campaigns block new preparations while
+  original orders can still reconcile. No admin payment-success override exists.
+- PostgreSQL and backups remain private. Tests use disposable isolated schemas;
+  CI must supply TEST_DATABASE_URL. Use synthetic evidence; upload UI is deferred.
+- AIDFLOW_PUBLIC_ORIGIN pins Origin and Host. Keep it aligned with AUTH_URL and the
+  Google callback. Forwarded headers cannot choose the allowed origin.

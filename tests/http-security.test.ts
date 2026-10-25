@@ -1,12 +1,26 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/identity", () => ({
+  requireUser: async () => ({ id: "test-user", role: "USER" }),
+}));
+// resetModules below gives each budget test a fresh RequestError class as well.
+vi.mock("@/lib/app-api", () => ({
+  appHandle: async (action: () => Promise<unknown>) =>
+    (await import("@/lib/http")).handle(action),
+  userBudget: vi.fn(),
+}));
 const calls = vi.hoisted(() => ({
   preparePayment: vi.fn(async () => ({ prepared: true })),
   submitPayment: vi.fn(async () => ({ status: "PENDING" })),
   paymentStatus: vi.fn(async () => ({ status: "UNKNOWN" })),
 }));
 vi.mock("@/lib/paiflow", () => calls);
+vi.mock("@/lib/orders", () => ({
+  prepareOrder: calls.preparePayment,
+  submitOrder: calls.submitPayment,
+  reconcileOrder: calls.paymentStatus,
+}));
 
 beforeEach(() => {
   vi.resetModules();
@@ -31,17 +45,29 @@ function request(body: unknown, headers: Record<string, string> = {}) {
 it("limits preparation without spending the status or submission allowances", async () => {
   const { POST } = await import("@/app/api/pay/route");
   for (const [action, field, value, limit] of [
-    ["prepare", "from", "public-account", 20],
+    ["prepare", "orderId", "saved-order", 20],
     ["status", "txHash", "a".repeat(64), 120],
     ["submit", "signedXdr", "fixture-envelope", 20],
   ] as const) {
     for (let i = 0; i < limit; i++)
-      expect((await POST(request({ action, [field]: value }))).status).toBe(
-        200,
-      );
+      expect(
+        (
+          await POST(
+            request({
+              action,
+              [field]: value,
+              ...(action === "submit" ? { orderId: "saved-order" } : {}),
+            }),
+          )
+        ).status,
+      ).toBe(200);
     const blocked = await POST(
       request(
-        { action, [field]: value },
+        {
+          action,
+          [field]: value,
+          ...(action === "submit" ? { orderId: "saved-order" } : {}),
+        },
         {
           "x-forwarded-for": "198.51.100.99",
           "x-real-ip": "198.51.100.98",
@@ -57,7 +83,7 @@ it("limits preparation without spending the status or submission allowances", as
   expect(calls.paymentStatus).toHaveBeenCalledTimes(120);
   vi.mocked(Date.now).mockReturnValue(160_000);
   expect(
-    (await POST(request({ action: "prepare", from: "public-account" }))).status,
+    (await POST(request({ action: "prepare", orderId: "saved-order" }))).status,
   ).toBe(200);
 });
 
@@ -140,12 +166,12 @@ it("reports the remaining delay and keeps failed upstream calls within the budge
   calls.preparePayment.mockRejectedValue(new Error("upstream unavailable"));
   for (let i = 0; i < 20; i++)
     expect(
-      (await POST(request({ action: "prepare", from: "public-account" })))
+      (await POST(request({ action: "prepare", orderId: "saved-order" })))
         .status,
     ).toBe(502);
   vi.mocked(Date.now).mockReturnValue(130_001);
   const blocked = await POST(
-    request({ action: "prepare", from: "public-account" }),
+    request({ action: "prepare", orderId: "saved-order" }),
   );
   expect(blocked.status).toBe(429);
   expect(blocked.headers.get("Retry-After")).toBe("30");

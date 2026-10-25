@@ -112,3 +112,27 @@ export async function paymentStatus(txHash: string) {
     );
   return data;
 }
+
+/** Read original deployment events in order; never truncate a receipt silently. */
+export async function paymentEvents(txHash: string) {
+  if (!/^[a-f0-9]{64}$/.test(txHash))
+    throw new Error("Invalid transaction hash.");
+  const d = deployment();
+  const items = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const { data } = await d.events.list({
+      txHash,
+      limit: 100,
+      ...(cursor ? { cursor } : {}),
+    });
+    items.push(...data.items);
+    if (!data.hasMore) return items;
+    if (!data.nextCursor || seen.has(data.nextCursor))
+      throw new Error("Incomplete original event evidence.");
+    seen.add(data.nextCursor);
+    cursor = data.nextCursor;
+  }
+  throw new Error("Original event feed requires operator pagination review.");
+}

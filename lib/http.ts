@@ -90,9 +90,50 @@ export async function handle(action: () => Promise<unknown>) {
 }
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
+  let expectedOrigin = new URL(request.url).origin;
+  const configuredOrigin = process.env.AIDFLOW_PUBLIC_ORIGIN?.trim();
+  if (configuredOrigin) {
+    let canonical: URL;
+    try {
+      canonical = new URL(configuredOrigin);
+    } catch {
+      throw new RequestError(
+        403,
+        "FORBIDDEN",
+        "Invalid server origin configuration.",
+      );
+    }
+    if (
+      canonical.username ||
+      canonical.password ||
+      canonical.pathname !== "/" ||
+      canonical.search ||
+      canonical.hash ||
+      (canonical.protocol !== "https:" &&
+        !(
+          canonical.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(canonical.hostname)
+        ))
+    )
+      throw new RequestError(
+        403,
+        "FORBIDDEN",
+        "Invalid server origin configuration.",
+      );
+    // NextRequest normalizes IPv4 loopback URLs to localhost. Pin the actual
+    // browser origin and Host to trusted server config; never trust forwarding
+    // headers to establish the allowed origin.
+    if (request.headers.get("host")?.toLowerCase() !== canonical.host)
+      throw new RequestError(
+        403,
+        "FORBIDDEN",
+        "Same-origin requests required.",
+      );
+    expectedOrigin = canonical.origin;
+  }
   if (
     !origin ||
-    origin !== new URL(request.url).origin ||
+    origin !== expectedOrigin ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
     throw new RequestError(403, "FORBIDDEN", "Same-origin requests required.");

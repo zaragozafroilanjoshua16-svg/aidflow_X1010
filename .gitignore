@@ -1,5 +1,49 @@
+# Dependencies and generated Next.js/TypeScript output
 node_modules/
 .next/
+/out/
+/dist/
+*.tsbuildinfo
+
+# Local environment and credentials; commit only the blank example
 .env*
 !.env.example
-*.tsbuildinfo
+local-db.json
+init-password.tmp
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private AidFlow runtime data (normally stored outside this repository)
+/AidFlowData/
+/.private/
+/private/
+/uploads/
+/backups/
+/postgres/
+/pgdata/
+*.dump
+*.backup
+*.sql.gz
+*.sql.zip
+
+# Wallet transaction/recovery evidence must never be committed
+*.xdr
+*.xdr.json
+signed-envelope*.json
+recovery-record*.json
+
+# Logs, test reports and agent scratch files
+*.log
+/coverage/
+/.nyc_output/
+/playwright-report/
+/test-results/
+/.superpowers/
+/.readiness-diagnostic.json
+
+# OS-generated metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

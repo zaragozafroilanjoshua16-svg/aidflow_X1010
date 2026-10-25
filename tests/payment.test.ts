@@ -27,6 +27,18 @@ import {
 } from "@/lib/paiflow";
 import { sameOrigin } from "@/lib/http";
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/identity", () => ({
+  requireUser: async () => ({ id: "test-user", role: "USER" }),
+}));
+vi.mock("@/lib/orders", () => ({
+  prepareOrder: vi.fn(),
+  submitOrder: vi.fn(),
+  reconcileOrder: vi.fn(),
+}));
+vi.mock("@/lib/app-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/app-api")>()),
+  userBudget: vi.fn(),
+}));
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   prepare: vi.fn(),

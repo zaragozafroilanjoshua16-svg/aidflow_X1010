@@ -11,26 +11,36 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:local": "node scripts/local-db.mjs",
+    "db:migrate": "node scripts/db.mjs",
+    "db:seed": "node --conditions=react-server --experimental-strip-types scripts/seed.mjs",
+    "admin:grant": "node scripts/admin.mjs",
+    "db:backup": "node scripts/backup.mjs",
+    "db:restore-check": "node scripts/restore-check.mjs"
   },
   "dependencies": {
+    "@auth/pg-adapter": "^1.11.3",
     "@paiflow/sdk": "0.2.0",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "^17.2.1",
     "next": "^15.5.28",
+    "next-auth": "5.0.0-beta.32",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@types/react-test-renderer": "19",
     "react-test-renderer": "19.3.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.12",
-    "vite": "^8.3.3"
+    "vite": "^8.3.3",
+    "vitest": "^4.1.12"
   },
   "pnpm": {
     "overrides": {

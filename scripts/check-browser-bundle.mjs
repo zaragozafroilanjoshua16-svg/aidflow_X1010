@@ -10,7 +10,7 @@ async function scan(directory) {
     else if (entry.name.endsWith(".js")) {
       const text = await readFile(path, "utf8");
       if (
-        /p(?:fd|fk)_[a-f0-9]{64}|PAIFLOW_API_TOKEN|PaiflowTransport|class PaiflowApiError/.test(
+        /p(?:fd|fk)_[a-f0-9]{64}|PAIFLOW_API_TOKEN|AUTH_GOOGLE_SECRET|AUTH_SECRET|DATABASE_URL|postgres(?:ql)?:\/\/|PaiflowTransport|class PaiflowApiError/.test(
           text,
         )
       ) {

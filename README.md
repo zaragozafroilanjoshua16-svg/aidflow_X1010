@@ -1,102 +1,189 @@
-# Paiflow SDK payment example
+# AidFlow
 
-A small, runnable Next.js example for integrating `@paiflow/sdk` into your own app. Connect Freighter, prepare a **1 testnet XLM** payment, sign it in the wallet, submit the original envelope, and check its transaction status. One explicitly configured Paiflow deployment supplies the payment rules.
+Fictional disaster relief with traceable **Stellar Testnet native-XLM** donations.
+Built on the official Paiflow Next.js starter, preserving SDK **0.2.0**, Freighter
+signing, original-transaction recovery and rate/body limits. Original attribution
+and integration guide: [starter README](docs/STARTER_README.md), [llms.md](llms.md).
 
-The SDK runs in your Node server. The browser calls your application's routes and signs with Freighter; it never receives the Paiflow credential. Copy the integration into an existing app or use this minimal example as a starting point.
+## What runs
 
-## Choose your starting point
+- Public campaign home/detail pages with fictional/demo labels and verified-XLM progress.
+- Google-only Auth.js database sessions; new users are `USER`, never public `ADMIN`.
+- Campaign submission, manual admin review and a separate activation check.
+- One verified seeded Testnet campaign; other applications cannot accept payments.
+- PostgreSQL orders with fixed 1 XLM, original preparation, exact signed envelope,
+  original hash, immutable recipient/deployment/platform snapshot and audit trail.
+- Successful receipts require finality plus actual native token transfers of
+  **0.9 XLM relief / 0.1 XLM logistics**, not just a generic successful lookup.
+- Interrupted submission recovery: check original, then an explicit retry of the
+  exact stored envelope after a one-minute guard. No automatic resubmit/replacement.
+- Private donor history/receipts. Private file uploads are intentionally deferred.
 
-Use the SDK in your own app when you already have an application. Use this minimal payment example when you want a runnable reference for the prepare → sign → submit → verify → recover lifecycle. [Campus Snacks](https://github.com/artisam-paiflow/paiflow-campus-snacks) is a separate application sample for a campus ordering use case.
+**Not fully rehearsed:** Google login and the authenticated AidFlow payment still
+need developer OAuth setup and wallet approval. ngrok, separate hosted-payment
+evidence and second-device testing remain manual exit gates.
+Do not describe this as a production charity platform or completed deployment.
 
-For the flow-building walkthrough, use the [Paiflow Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/paiflow-guide.md). For detailed integration reference, use the [SDK README](https://github.com/artisam-paiflow/paiflow/blob/develop/packages/sdk/README.md) and [API README](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/api/README.md).
+## Windows Git Bash setup
 
-## Run locally
+Node **22.22.2** / pnpm **10.4.1** are required by the starter. PostgreSQL 18 is
+installed on this developer machine. No Docker, Supabase or ORM is required.
 
-Requires **Node `>=22.22.2 <23`** and **pnpm `10.4.1`**.
-
-On Windows, follow the [Windows Setup Guide](https://github.com/artisam-paiflow/paiflow/blob/develop/docs/hackathon/setup-guide.md) to install Git, Node and pnpm, run this starter, then set up Engr with Kimi.
-
-```sh
-git clone https://github.com/artisam-paiflow/paiflow-hackathon-starter.git
-cd paiflow-hackathon-starter
-npm install --global pnpm@10.4.1
+```bash
+cd /d/0001/mini-hackathon/aidflow
+node --version
+pnpm --version
 pnpm install --frozen-lockfile
-cp .env.example .env.local
-pnpm dev
+# Fresh checkout only: cp .env.example .env.local
 ```
 
-Open http://localhost:3000. Without complete server configuration, payment actions remain disabled.
+Never overwrite an existing `.env.local`. Set server-only Paiflow deployment UUID
+and a Read and operate token scoped to it. Never paste tokens, wallet seeds or
+signed envelopes into chat, source, public receipts or support logs.
 
-The dependency is pinned to **`@paiflow/sdk@0.2.0`**, published under npm's `beta` tag. Developer tokens require a backend implementing OpenAPI `1.1.0`, including the staging environment checked on October 17, 2026.
+For a **new isolated local database**, or to reuse one created by this script:
 
-## Configure your deployment
+```bash
+# Keep all database files outside Git. D: was tested on this machine.
+export AIDFLOW_DATA_DIR='D:/AidFlowData'
+# Optional if PostgreSQL lives elsewhere:
+# export AIDFLOW_PG_BIN='D:/Program Files/PostgreSQL/18/bin'
+pnpm db:local
+pnpm db:migrate
+pnpm db:seed
+```
 
-1. In Paiflow, build and deploy an **On Receive (native XLM)** flow with your chosen recipients and rules. Wait for confirmation and review those rules. This app does not create or deploy flows.
-2. In **Account → Developer**, create a **Read and operate** token and explicitly grant it access to that deployment. Copy its one-time `pfd_` secret. An existing deployment-bound `pfk_` token from **API access** also works.
-3. Set these server-only values in `.env.local`, then restart:
+`db:local` never changes an existing DATABASE_URL. It creates a separate cluster
+on **127.0.0.1:55432**, a non-superuser `aidflow_app` database owner, random local
+passwords and AUTH_SECRET. Passwords are saved locally and never printed. The
+cluster's bootstrap credential is private in `AIDFLOW_DATA_DIR/local-db.json`.
+The app role can manage its own schema for migrations, but has no cluster-level
+superuser, create-role or create-database privileges. Restrict that directory
+to your Windows account; Windows ACL hardening has not been independently audited.
+On this host, initdb under the C: profile failed with `Improper link`; D: succeeded.
+
+Alternatively, create a localhost-only database and scoped role yourself and set
+DATABASE_URL in `.env.local`, then run the migration/seed commands. pgAdmin is a GUI,
+not the backend. Seed rechecks the documented original chain proof before activation;
+it fails closed if the proof is unavailable or the configured UUID differs.
+**It seeds zero users and zero donation orders.**
+
+## Google sign-in
+
+Configure these **only in `.env.local`**:
 
 ```dotenv
-PAIFLOW_BASE_URL=https://beta.app.paiflow.xyz
-PAIFLOW_DEPLOYMENT_ID=<your confirmed deployment UUID>
-PAIFLOW_API_TOKEN=<your pfd_ or pfk_ token>
+AIDFLOW_PUBLIC_ORIGIN=http://127.0.0.1:3000
+AUTH_URL=http://127.0.0.1:3000
+AUTH_SECRET=YOUR_LONG_RANDOM_LOCAL_SECRET
+AUTH_GOOGLE_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID
+AUTH_GOOGLE_SECRET=YOUR_GOOGLE_OAUTH_CLIENT_SECRET
 ```
 
-Never use `NEXT_PUBLIC_` for these settings, commit `.env.local`, or put wallet secret keys into the app. The app uses the configured deployment, never the first discovery result. A developer token must explicitly include that deployment.
+Register the exact callback in Google Cloud:
+`http://127.0.0.1:3000/api/auth/callback/google`. Add authorized test users when
+the Google External app is in Testing. The app accepts verified Google email
+profiles only, uses the inspected `@auth/pg-adapter@1.11.3` schema and database
+session cookies, and never reads roles from public input. If credentials are
+missing, the public app works and `/signin` explains setup; mutation APIs return 401.
+The schema uses adapter-compatible quoted names such as `"userId"` and
+`"sessionToken"`, with UUID primary keys.
 
-Complete credentials enable this example. Removing them disables new API actions but does not cancel an existing transaction. Retain recovery evidence when changing configuration.
+After the intended administrator first signs in with Google:
 
-## Try a payment
+```bash
+pnpm admin:grant your-verified-google-email@example.com
+```
 
-1. Install Freighter. Fund a dedicated testnet customer wallet with enough XLM for the payment and transaction fees. Use testnet recipients; mainnet and non-native-XLM deployments are refused.
-2. Connect the wallet. Review your deployment and its recipients in Paiflow, then start the payment.
-3. Review and sign in Freighter. The app uses the server-prepared network passphrase, checks the wallet's network and verifies the signed transaction body against the original preparation.
-4. Check the original transaction's status. `SUCCESS` confirms that transaction. `PENDING`, `UNKNOWN`, missing history and transport errors remain unresolved.
-5. Inspect recipient payouts in Paiflow or a testnet explorer. A transaction confirmation is not an application receipt or authorization to fulfil an order.
+This trusted local operation requires an existing Google-linked account and appends
+an audit record. No admin account, auth bypass or test session is installed by seed.
 
-This is a fixed-amount payment demonstration, not a shop. It has no customer authentication, persistent order database or fulfilment system, and does not independently verify your intended recipients or split. The payment API has global per-process limits of 20 preparations, 20 submissions and 120 status checks per minute, plus 240 total payment requests per minute. Limits return HTTP 429 with `Retry-After`; preparation traffic has a separate allowance from transaction recovery. Request bodies are limited to 210,000 bytes while streaming. Client-supplied forwarding headers do not change these budgets.
+## Run
 
-These in-memory limits reset on restart and apply separately to each server process. Public hosting should also enforce shared rate and body-size limits at the ingress across replicas. Real applications need session/ownership checks, durable storage, trusted pricing, durable order-to-transaction binding and exact receipt verification.
+```bash
+pnpm dev --hostname 127.0.0.1
+# Or production rehearsal:
+pnpm build
+node scripts/check-browser-bundle.mjs
+pnpm start --hostname 127.0.0.1
+```
 
-## Recover an interrupted payment
+Open **http://127.0.0.1:3000**. Use one exact origin. Next.js normalizes IPv4 request
+URLs to `localhost`; AIDFLOW_PUBLIC_ORIGIN pins the real browser Origin and Host
+without trusting forwarding headers. Restart after changing credentials/origin.
+Stop an existing server before reusing port 3000. Never clear recovery storage
+or switch origins while an original payment is unresolved.
 
-The example saves the original preparation before signing and the exact signed envelope before submission. Recovery is scoped to the configured platform and deployment. Browser storage and Web Locks are required; a storage failure blocks the next financial step.
+## Routes
 
-Preparation, submission and manual status requests each have a 30-second browser response deadline. A submission timeout does not cancel or reject the transaction.
+| Route | Purpose |
+| --- | --- |
+| `/` | Fictional mission, demo campaign and XLM-only totals |
+| `/campaigns/habagat-relief-demo` | Story, public wallets, exact split, verified progress |
+| `/campaigns/[slug]/donate` | Signed-in wallet review, original preparation/sign/submit |
+| `/donations/[id]` | Owner-only durable order and original-hash receipt/reconciliation |
+| `/dashboard` | Personal orders, campaign applications and submission form |
+| `/admin` | Manual application review with audited reason; no success override |
+| `/starter/recover` | Signed-in read-only original starter hash check; retains evidence |
 
-After submission, a pending response, RPC error or lost response starts **Confirmation pending—checking the original transaction**. The app makes only status lookups: at most six attempts over one 30-second confirmation window, with backoff and `Retry-After` respected. Each lookup uses only the time remaining in that window; it never starts a fresh 30-second window. Reloading an attempted unresolved signed payment resumes one bounded check of its original hash. No automatic check prepares, signs or submits another transaction.
+Raw starter prepare/submit is retired: `/api/pay` now requires a saved owned order.
+Legacy hash status checks remain signed-in and read-only; they never affect totals.
+All donation mutations also retain global per-process starter limits, streaming
+210,000-byte request limits and durable per-account minute budgets. PostgreSQL
+row locks, a unique unresolved-order index and durable preparation/submission claims
+protect concurrent requests. Lost preparation responses may require operator review;
+the app deliberately does not invent a replacement.
 
-Use **Stop checking** to stop the read-only checks, or **Check original transaction** to check again after the bounded check finishes. Both preserve the original evidence. Manual retry sends only the **same signed envelope**; it is never automatic. Keep original evidence after a timeout, rejected response, `UNKNOWN`, `NOT_FOUND` or expired preparation. None proves that a replacement is safe. Do not clear browser data to start over while an operation is unresolved. If no signature is available after expiry, ask the platform operator to establish the outcome.
+## Verify
 
-Recovery is local to this browser and origin. Lost storage, a different machine or a lost preparation response may require operator assistance. Browser storage is teaching code, not durable cross-device payment storage. Never log or share signed envelopes or full recovery records.
-
-An unresolved payment record for another platform or deployment blocks a new payment; restore its original server configuration to reconcile it. Recovery checks retain existing evidence rather than silently deleting or converting it.
-
-## Code map
-
-| File                           | Responsibility                                                 |
-| ------------------------------ | -------------------------------------------------------------- |
-| `lib/paiflow.ts`               | Server-only configuration and typed SDK payment calls          |
-| `app/api/pay/route.ts`         | Allowlisted preparation, submission and reconciliation actions |
-| `app/api/integration/route.ts` | Non-secret configuration state                                 |
-| `lib/wallet.ts`                | Freighter connection and signing                               |
-| `lib/recovery.ts`              | Original transaction evidence and validation                   |
-| `lib/transaction.ts`           | Transaction hashing and unchanged-envelope checks              |
-| `components/starter-app.tsx`   | Payment walkthrough and recovery controls                      |
-
-The SDK supplies transport, typed responses and API metadata. Your app supplies wallet consent, storage, authorization, reconciliation decisions and business rules.
-
-## Checks and evidence
-
-```sh
-pnpm audit
+```bash
 pnpm typecheck
 pnpm test
 pnpm build
 node scripts/check-browser-bundle.mjs
 ```
 
-CI also audits dependencies on pushes, pull requests and a weekly schedule. Vite is an explicit development dependency so its patched version is selected for Vitest rather than retaining an older auto-installed peer.
+Integration tests need TEST_DATABASE_URL or local DATABASE_URL. They create random
+isolated `test_*` schemas and drop only those schemas afterward. They do not alter
+real campaign/order data. CI supplies a disposable PostgreSQL service. The testnet
+receipt verifier was additionally exercised against the public original rehearsal
+transaction by `db:seed`; tests alone do not substitute for wallet approval.
 
-Tests use fixtures and mocked upstream responses. They do not establish live wallet consent or payout readiness. Complete a small authorized testnet rehearsal against your deployment before demonstrating it. No fresh signed payment was made for this migration.
+See [public rehearsal proof](docs/TESTNET_EVIDENCE.md) and
+[implementation status](IMPLEMENTATION_STATUS.md). The 90% demo recipient also acted
+as donor in that rehearsal; recipient wallets are distinct. No real-world relief
+delivery is established. Stellar RPC may stop retaining old transaction metadata;
+an unavailable chain proof leaves an order unresolved, not falsely successful.
 
-Follow your event's primer for permissions, deadlines and submissions. See [`llms.md`](llms.md) for shared Paiflow SDK integration context; use this README and current source for this runnable example.
+## ngrok rehearsal and backups
+
+Use the developer's assigned HTTPS hostname. Set AIDFLOW_PUBLIC_ORIGIN and AUTH_URL
+to that exact HTTPS origin and register its `/api/auth/callback/google` callback.
+Reconcile all original localhost orders first. Build and start on port 3000, then
+tunnel **only port 3000**. Never tunnel PostgreSQL, pgAdmin or private storage.
+Test the ngrok visitor interstitial, login cookies, payment, receipt and a second
+device/network. These steps have not been performed by this implementation.
+
+```bash
+pnpm db:backup
+export AIDFLOW_DATA_DIR='D:/AidFlowData'
+pnpm db:restore-check
+```
+
+Backups go to `AIDFLOW_BACKUP_DIR` or the system local AidFlow backup folder outside
+Git. The script uses pg_dump custom format, validates the archive listing and
+records counts without printing database credentials. `db:restore-check` is for the
+isolated localhost:55432 cluster: it restores the latest archive into a new disposable
+database, verifies campaign/order/evidence counts, then drops only that disposable
+database. This was run successfully on the local seed-only database. It does not
+establish recovery of real authenticated donation records that do not yet exist.
+Copy and rehearse restoring matching private files separately if uploads are added.
+Keep backups secret and use the developer's local credentials.
+
+## Scope and boundaries
+
+Only native Testnet XLM, fixed 1 XLM, no fiat checkout, no conversions, no custody,
+no real IDs, no automated KYC, no mobile wallet compatibility claim. The 1,000 XLM
+goal is illustrative. Client-side signed evidence is private to its order owner;
+server signed envelopes are never returned or logged. Future deployment versions
+require manual review and fresh verification, not editing a ready config in place.
